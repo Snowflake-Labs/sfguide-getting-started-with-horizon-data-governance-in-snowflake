@@ -3,11 +3,11 @@
 | H | O | R | I | Z | O | N |   | L | A | B | S | 
 
 Demo:         Horizon Lab (Data / Governor Admin Persona)
-Version:      HLab v1
+Version:      HLab v2.0
 Create Date:  Apr 17, 2024
 Author:       Ravi Kumar
 Reviewers:    Ben Weiss, Susan Devitt
-Copyright(c): 2024 Snowflake Inc. All rights reserved.
+Copyright(c): 2026 Snowflake Inc. All rights reserved.
 ****************************************************************************************************
 
 ****************************************************************************************************
@@ -21,7 +21,6 @@ Apr 17, 2024        Ravi Kumar           Initial Lab
 /* D A T A      G O V E R N O R   A D M I N      R O L E */
 /*************************************************/
 /*************************************************/
-
 
 
 /*----------------------------------------------------------------------------------

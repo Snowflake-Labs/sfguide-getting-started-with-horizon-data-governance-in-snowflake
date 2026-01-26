@@ -2,18 +2,20 @@
 | H | O | R | I | Z | O | N |   | L | A | B | S | 
 
 Demo:         Horizon Lab (Data Engineer Persona)
-Version:      HLab v1
+Version:      HLab v2.0
 Create Date:  Apr 17, 2024
 Author:       Ravi Kumar
 Reviewers:    Ben Weiss, Susan Devitt
-Copyright(c): 2024 Snowflake Inc. All rights reserved.
+Contributor:  Severin Gassauer (severin.gassauer@snowflake.com)
+Copyright(c): 2026 Snowflake Inc. All rights reserved.
 ****************************************************************************************************
 
 ****************************************************************************************************
 SUMMARY OF CHANGES
 Date(yyyy-mm-dd)    Author              Comments
 ------------------- ------------------- ------------------------------------------------------------
-Apr 17, 2024        Ravi Kumar           Initial Lab
+Apr 17, 2024        Ravi Kumar          Initial Lab
+Jan 26, 2026        Severin Gassauer    Updated for v2.0
 ***************************************************************************************************/
 
 /*----------------------------------------------------------------------------------
@@ -237,7 +239,7 @@ ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.NU
 
 --Uniqueness
 ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.UNIQUE_COUNT on (EMAIL);
-ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT on (EMAIL);;
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.DUPLICATE_COUNT on (EMAIL);
 
 --Volume
 ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER ADD DATA METRIC FUNCTION SNOWFLAKE.CORE.ROW_COUNT on ();
