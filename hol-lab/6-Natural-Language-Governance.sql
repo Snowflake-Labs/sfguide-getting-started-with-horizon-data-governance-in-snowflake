@@ -93,15 +93,15 @@ CORTEX CODE - ASK GOVERNANCE QUESTIONS IN NATURAL LANGUAGE
  
  TAG MANAGEMENT:
  ---------------
- 9. "What tags are applied to the CUSTOMER table?"
- 10. "List all tables tagged with PII_COL"
+ 9. "List all tags and what columns they are applied to in HRZN_DB"
+ 10. "List all columns tagged as PII"
  
- 📌 TIP: Cortex Code understands INFORMATION_SCHEMA and ACCOUNT_USAGE views.
+ TIP: Cortex Code understands INFORMATION_SCHEMA and ACCOUNT_USAGE views.
          It will write SQL queries to answer your governance questions automatically!
-         
- 📌 NO SEMANTIC VIEW NEEDED: Unlike business analytics (Section 4), governance
-    queries work directly against system views without semantic models!
-*******************************************************************************/
+
+ Tip: The governance view may not have been synced yet. So, you may need to instruct
+ Cortex to "Check information schema as account usage may not be populated yet"
+ ******************************************************************************/
 
 -- ============================================================================
 -- 6.3: MANUAL SQL VERSIONS OF GOVERNANCE QUESTIONS

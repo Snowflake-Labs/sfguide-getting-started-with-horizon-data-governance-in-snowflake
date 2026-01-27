@@ -263,7 +263,7 @@ ALTER TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION
     SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASKING_POLICY;
 
 /*******************************************************************************
- * 🎯 KEY BENEFIT: Single Policy, Multi-Level Protection
+ * KEY BENEFIT: Single Policy, Multi-Level Protection
  * 
  * One masking policy handles all classification levels:
  * - PII: Fully redacted (***PII-REDACTED***)
@@ -538,25 +538,23 @@ ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN ZIP SET TAG HRZN_DB.TAG_SCHE
  * LAB 2 KEY TAKEAWAYS:
  * 
  * CLASSIFICATION:
- * ✅ AI-powered classification with custom tag mapping
- * ✅ DATA_CLASSIFICATION tag with 5 levels (PII → PUBLIC)
- * ✅ Tag propagation enabled for automatic governance
- * ✅ Custom classifiers for domain-specific data
+ * AI-powered classification with custom tag mapping
+ * DATA_CLASSIFICATION tag with 5 levels (PII → PUBLIC)
+ * Tag propagation enabled for automatic governance
+ * Custom classifiers for domain-specific data
  * 
  * MASKING:
- * ✅ Single tag-based policy for multi-level protection
- * ✅ Automatic application to all tagged columns
- * ✅ Role-based access control
+ * Single tag-based policy for multi-level protection
+ * Automatic application to all tagged columns
+ * Role-based access control
  * 
  * ADVANCED POLICIES:
- * ✅ Row access policies for geographic filtering
- * ✅ Aggregation policies to prevent individual record access
- * ✅ Projection policies to control column visibility
+ * Row access policies for geographic filtering
+ * Aggregation policies to prevent individual record access
+ * Projection policies to control column visibility
  * 
  * PROPAGATION BENEFITS:
- * ✅ Derived tables automatically inherit tags
- * ✅ Masking policies apply without manual work
- * ✅ Scales to thousands of downstream tables
- * 
- * NEXT: Lab 5 shows AI_REDACT for unstructured data protection
+ * Derived tables automatically inherit tags
+ * Masking policies apply without manual work
+ * Scales to thousands of downstream tables
  *******************************************************************************/

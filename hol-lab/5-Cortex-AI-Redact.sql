@@ -96,8 +96,7 @@ LIMIT 10;
  * - SSN: 123-45-6789
  * - Addresses: 456 Oak Street, Boston MA 02101
  * 
- * Classification tags can't help here - this is free-form text!
- * We need AI_REDACT to protect this unstructured PII.
+ * This is free-form text! We can use AI_REDACT to protect this unstructured PII.
  *******************************************************************************/
 
 -- ============================================================================
@@ -383,11 +382,4 @@ ORDER BY feedback_count DESC;
  * - Compliant ML training data
  * - Combines with RBAC for fine-grained control
  * 
- * NEXT STEPS:
- * 1. Apply AI_REDACT to your own unstructured data columns
- * 2. Create redacted tables for ML training environments
- * 3. Build secure views with role-based redaction
- * 4. Combine with Cortex functions (SUMMARIZE, COMPLETE) for safe AI
- * 5. Monitor AI_REDACT usage via QUERY_HISTORY
- * 6. Share redacted datasets with external partners
  *******************************************************************************/

@@ -389,7 +389,4 @@ If masking/filtering doesn't work:
 -- 4. ALL existing policies (masking, row access) automatically apply to AI queries
 -- 5. Can be tagged for governance tracking
 -- 6. Lineage is tracked in OBJECT_DEPENDENCIES
--- 7. No YAML files or stages needed - it's all SQL!
--- 8. CRITICAL: Test with different roles in Cortex Analyst UI to demonstrate
---    that governance policies automatically protect AI-generated queries
 -- ============================================================================
