@@ -3,17 +3,19 @@
 | H | O | R | I | Z | O | N |   | L | A | B | S | 
 
 Demo:         Horizon Lab
-Version:      HLab v1
+Version:      HLab v2.0
 Create Date:  Apr 17, 2024
 Author:       Ravi Kumar
 Reviewers:    Ben Weiss, Susan Devitt
-Copyright(c): 2024 Snowflake Inc. All rights reserved.
+Contributor:  Severin Gassauer (severin.gassauer@snowflake.com)
+Copyright(c): 2026 Snowflake Inc. All rights reserved.
 ****************************************************************************************************/
 /****************************************************************************************************
 SUMMARY OF CHANGES
 Date(yyyy-mm-dd)    Author              Comments
 ------------------- ------------------- ------------------------------------------------------------
-Apr 17, 2024        Ravi Kumar           Initial Lab
+Apr 17, 2024        Ravi Kumar          Initial Lab
+Jan 26, 2026        Severin Gassauer    Added AI Governance Extension privileges
 ***************************************************************************************************/
 
 
@@ -86,8 +88,8 @@ COMMENT = 'Schema containing Tags';
 CREATE OR REPLACE TABLE HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP
     (role STRING, state_visibility STRING);
 
--- with the table in place, we will now INSERT the relevant Role to City Permissions mapping to ensure
--- our Test only can see Tokyo customers
+-- with the table in place, we will now INSERT the relevant Role to State Permissions mapping to ensure
+-- our Test Role can only see Massachusetts (MA) customers
 INSERT INTO HRZN_DB.TAG_SCHEMA.ROW_POLICY_MAP
     VALUES ('HRZN_DATA_USER','MA'); 
 
@@ -196,47 +198,50 @@ GRANT APPLY PROJECTION POLICY ON ACCOUNT TO ROLE HRZN_DATA_GOVERNOR;
 
 GRANT DATABASE ROLE SNOWFLAKE.CLASSIFICATION_ADMIN TO ROLE HRZN_DATA_GOVERNOR;
 
-
-
-
-
-
-
 --USE ROLE HRZN_DATA_ENGINEER;
 --truncate table HRZN_DB.HRZN_SCH.CUSTOMER;
 --truncate table HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS;
 
-
---Create Lineage
+--Create View for Semantic Models and Analysis
 USE ROLE HRZN_DATA_ENGINEER;
-
-
 use database HRZN_DB;
 use schema HRZN_DB.HRZN_SCH;
 USE WAREHOUSE HRZN_WH;
 
--- create new table, then populate it with dynamic content
-create OR REPLACE table HRZN_DB.HRZN_SCH.Customer_NY as
-select *  EXCLUDE ZIP from HRZN_DB.HRZN_SCH.CUSTOMER where state='NY';
-
-create OR REPLACE table HRZN_DB.HRZN_SCH.Customer_DC as
-select *  EXCLUDE ZIP from HRZN_DB.HRZN_SCH.CUSTOMER where state='DC';
-
-create OR REPLACE table HRZN_DB.HRZN_SCH.Customer_AR as
-select *  EXCLUDE ZIP from HRZN_DB.HRZN_SCH.CUSTOMER where state='AR';
-
-
+-- Create summary view for customer order analytics
 CREATE OR REPLACE VIEW HRZN_DB.HRZN_SCH.CUSTOMER_ORDER_SUMMARY AS
 SELECT C.ID, C.FIRST_NAME, C.LAST_NAME, COUNT(CO.ORDER_ID) ORDERS_COUNT, SUM(CO.ORDER_TOTAL) ORDER_TOTAL
 FROM HRZN_DB.HRZN_SCH.CUSTOMER C, HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS CO
 WHERE C.ID  = CO.CUSTOMER_ID
 GROUP BY 1,2,3;
 
-CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDER_SUMMARY_NY AS
-SELECT CS.*
-FROM HRZN_DB.HRZN_SCH.Customer_NY C, HRZN_DB.HRZN_SCH.CUSTOMER_ORDER_SUMMARY CS
-WHERE C.ID  = CS.ID;
+-- ============================================================================
+-- AI GOVERNANCE EXTENSION PRIVILEGES
+-- ============================================================================
+-- These grants enable sections 4-6 (Semantic Views, AI_REDACT, NL Governance)
+-- Added for AI Governance Lab Extensions
+-- ============================================================================
 
--- create new user stage, then copy CUSTOMER data here
-create OR REPLACE stage CustomerNYStage;
-copy into @CustomerNYStage from HRZN_DB.HRZN_SCH.CUSTOMER_ORDER_SUMMARY_NY;
+USE ROLE ACCOUNTADMIN;
+
+-- Section 4: Semantic View Governance
+GRANT CREATE SEMANTIC VIEW ON SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_GOVERNOR;
+GRANT CREATE VIEW ON SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_GOVERNOR;
+GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.CUSTOMER TO ROLE HRZN_DATA_GOVERNOR;
+GRANT SELECT ON TABLE HRZN_DB.HRZN_SCH.CUSTOMER_ORDERS TO ROLE HRZN_DATA_GOVERNOR;
+
+-- Section 5: Cortex Agent Governance
+GRANT CREATE SCHEMA ON DATABASE HRZN_DB TO ROLE HRZN_DATA_GOVERNOR;
+
+-- Section 6: AI-Powered Classification
+GRANT CREATE FUNCTION ON SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_GOVERNOR;
+GRANT CREATE PROCEDURE ON SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_GOVERNOR;
+GRANT USAGE ON SCHEMA HRZN_DB.CLASSIFIERS TO ROLE HRZN_DATA_GOVERNOR;
+GRANT CREATE FUNCTION ON SCHEMA HRZN_DB.CLASSIFIERS TO ROLE HRZN_DATA_GOVERNOR;
+
+-- Allow roles to use Cortex functions
+GRANT USAGE ON FUTURE FUNCTIONS IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_GOVERNOR;
+GRANT USAGE ON FUTURE FUNCTIONS IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_DATA_USER;
+GRANT USAGE ON FUTURE FUNCTIONS IN SCHEMA HRZN_DB.HRZN_SCH TO ROLE HRZN_IT_ADMIN;
+
+SELECT 'Lab setup complete. You can now run sections 1-6.' as status;
