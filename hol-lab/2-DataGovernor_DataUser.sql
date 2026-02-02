@@ -90,7 +90,7 @@ CREATE OR REPLACE TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION
 USE ROLE SYSADMIN;
 
 CREATE OR REPLACE SNOWFLAKE.DATA_PRIVACY.CLASSIFICATION_PROFILE 
-    HRZN_DB.HRZN_SCH.HRZN_CLASSIFICATION_PROFILE(
+    HRZN_DB.HRZN_SCH.HRZN_STANDARD_CLASSIFICATION_PROFILE(
     {
       'minimum_object_age_for_classification_days': 0,
       'maximum_classification_validity_days': 90,
@@ -148,12 +148,12 @@ USE ROLE HRZN_DATA_GOVERNOR;
 
 -- Apply classification profile to the database
 ALTER DATABASE HRZN_DB 
-    SET CLASSIFICATION_PROFILE = 'HRZN_DB.HRZN_SCH.HRZN_CLASSIFICATION_PROFILE';
+    SET CLASSIFICATION_PROFILE = 'HRZN_DB.HRZN_SCH.HRZN_STANDARD_CLASSIFICATION_PROFILE';
 
 -- Run AI classification on CUSTOMER table
 CALL SYSTEM$CLASSIFY(
     'HRZN_DB.HRZN_SCH.CUSTOMER',
-    'HRZN_DB.HRZN_SCH.HRZN_CLASSIFICATION_PROFILE'
+    'HRZN_DB.HRZN_SCH.HRZN_STANDARD_CLASSIFICATION_PROFILE'
 );
 
 -- View all tags applied (system + custom)
@@ -229,56 +229,212 @@ CALL SYSTEM$CLASSIFY(
 SELECT SYSTEM$GET_TAG('snowflake.core.semantic_category','HRZN_DB.HRZN_SCH.CUSTOMER.CREDITCARD','column');
 
 /****************************************************/
--- 5. CREATE TAG-BASED MASKING POLICY
+-- 5. CREATE TAG-BASED MASKING POLICIES (Multi-Type)
 /****************************************************/
 USE ROLE HRZN_DATA_GOVERNOR;
 USE SCHEMA HRZN_DB.TAG_SCHEMA;
 
--- Create a single masking policy for all classification levels
-CREATE MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASKING_POLICY 
+/*******************************************************************************
+ * BEST PRACTICE: Multi-Type Masking Policies
+ * 
+ * Snowflake masking policies are data-type specific. A STRING policy only works
+ * on STRING columns. For comprehensive protection, create one policy per data type
+ * and attach all to the same tag.
+ * 
+ * OPT-IN LOGIC: Customers who have opted in (OPTIN='Y') have consented to data
+ * sharing. Their data may be visible to authorized roles for analytics purposes.
+ *******************************************************************************/
+
+-- Create opt-in lookup table for masking decisions
+CREATE OR REPLACE TABLE HRZN_DB.TAG_SCHEMA.CUSTOMER_CONSENT_MAP AS
+SELECT DISTINCT ID as CUSTOMER_ID, OPTIN 
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
+
+GRANT SELECT ON TABLE HRZN_DB.TAG_SCHEMA.CUSTOMER_CONSENT_MAP TO ROLE HRZN_DATA_USER;
+GRANT SELECT ON TABLE HRZN_DB.TAG_SCHEMA.CUSTOMER_CONSENT_MAP TO ROLE HRZN_IT_ADMIN;
+
+-- ============================================================================
+-- STRING MASKING POLICY (for VARCHAR columns)
+-- ============================================================================
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_STRING
 AS (VAL STRING) 
 RETURNS STRING ->
 CASE
-    -- PII: Full redaction for non-governors
+    -- Governors and admins always see full data
+    WHEN CURRENT_ROLE() IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN')
+    THEN VAL
+    
+    -- PII: Full redaction for non-governors (regardless of opt-in)
     WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'PII'
-         AND CURRENT_ROLE() NOT IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN')
     THEN '***PII-REDACTED***'
     
-    -- RESTRICTED: Partial masking for DATA_USER
+    -- RESTRICTED: Partial masking - show last 4 characters
     WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'RESTRICTED'
-         AND CURRENT_ROLE() IN ('HRZN_DATA_USER')
     THEN CONCAT('***-', RIGHT(VAL, 4))
     
-    -- SENSITIVE: Hash for DATA_USER
+    -- SENSITIVE: SHA2 hash for pseudonymization
     WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'SENSITIVE'
-         AND CURRENT_ROLE() IN ('HRZN_DATA_USER')
     THEN SHA2(VAL, 256)
     
-    -- INTERNAL and PUBLIC: Visible to all (no masking)
+    -- INTERNAL and PUBLIC: Visible to all
     ELSE VAL
 END;
 
--- Attach masking policy to the DATA_CLASSIFICATION tag
+-- ============================================================================
+-- NUMBER MASKING POLICY (for FLOAT, INTEGER, NUMBER columns)
+-- ============================================================================
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_NUMBER
+AS (VAL NUMBER) 
+RETURNS NUMBER ->
+CASE
+    -- Governors and admins always see full data
+    WHEN CURRENT_ROLE() IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN')
+    THEN VAL
+    
+    -- PII: Return NULL for numeric PII (like SSN stored as number)
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'PII'
+    THEN NULL
+    
+    -- RESTRICTED: Round to reduce precision
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'RESTRICTED'
+    THEN ROUND(VAL, -2)
+    
+    -- SENSITIVE: Return hash as number (deterministic for joins)
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'SENSITIVE'
+    THEN ABS(HASH(VAL))
+    
+    -- INTERNAL and PUBLIC: Visible to all
+    ELSE VAL
+END;
+
+-- ============================================================================
+-- DATE MASKING POLICY (for DATE columns)
+-- ============================================================================
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_DATE
+AS (VAL DATE) 
+RETURNS DATE ->
+CASE
+    -- Governors and admins always see full data
+    WHEN CURRENT_ROLE() IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN')
+    THEN VAL
+    
+    -- PII: Return NULL for date-based PII
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'PII'
+    THEN NULL
+    
+    -- RESTRICTED: Show only year (first day of year)
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'RESTRICTED'
+    THEN DATE_TRUNC('YEAR', VAL)
+    
+    -- SENSITIVE: Generalize to first of month
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'SENSITIVE'
+    THEN DATE_TRUNC('MONTH', VAL)
+    
+    -- INTERNAL and PUBLIC: Visible to all
+    ELSE VAL
+END;
+
+-- ============================================================================
+-- TIMESTAMP MASKING POLICY (for TIMESTAMP columns)
+-- ============================================================================
+CREATE OR REPLACE MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_TIMESTAMP
+AS (VAL TIMESTAMP) 
+RETURNS TIMESTAMP ->
+CASE
+    -- Governors and admins always see full data
+    WHEN CURRENT_ROLE() IN ('HRZN_DATA_GOVERNOR', 'ACCOUNTADMIN')
+    THEN VAL
+    
+    -- PII: Return NULL for timestamp-based PII
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'PII'
+    THEN NULL
+    
+    -- RESTRICTED: Show only date portion (midnight)
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'RESTRICTED'
+    THEN DATE_TRUNC('DAY', VAL)
+    
+    -- SENSITIVE: Generalize to first of month
+    WHEN SYSTEM$GET_TAG_ON_CURRENT_COLUMN('HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION') = 'SENSITIVE'
+    THEN DATE_TRUNC('MONTH', VAL)
+    
+    -- INTERNAL and PUBLIC: Visible to all
+    ELSE VAL
+END;
+
+-- ============================================================================
+-- ATTACH ALL POLICIES TO THE DATA_CLASSIFICATION TAG
+-- ============================================================================
+-- Each data type gets its own policy attached to the same tag
 ALTER TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION 
-    SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASKING_POLICY;
+    SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_STRING;
+
+ALTER TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION 
+    SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_NUMBER;
+
+ALTER TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION 
+    SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_DATE;
+
+ALTER TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION 
+    SET MASKING POLICY HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION_MASK_TIMESTAMP;
 
 /*******************************************************************************
- * KEY BENEFIT: Single Policy, Multi-Level Protection
+ * KEY BENEFITS: Production-Ready Multi-Type Masking
  * 
- * One masking policy handles all classification levels:
- * - PII: Fully redacted (***PII-REDACTED***)
- * - RESTRICTED: Partially masked (***-1234)
- * - SENSITIVE: SHA2 hash
- * - INTERNAL/PUBLIC: Visible
+ * 1. TYPE SAFETY: Each data type has appropriate masking logic
+ *    - STRING: Redaction, partial masking, or hashing
+ *    - NUMBER: NULL, rounding, or deterministic hash
+ *    - DATE/TIMESTAMP: NULL or date truncation for k-anonymity
  * 
- * Policy applies automatically to ANY column tagged with DATA_CLASSIFICATION!
+ * 2. CLASSIFICATION LEVELS: Consistent across all types
+ *    - PII: Maximum protection (redact/NULL)
+ *    - RESTRICTED: Partial visibility (last 4 chars, rounded, year only)
+ *    - SENSITIVE: Pseudonymized (hash, month truncation)
+ *    - INTERNAL/PUBLIC: Full visibility
+ * 
+ * 3. AUTOMATIC APPLICATION: Any column tagged with DATA_CLASSIFICATION
+ *    automatically gets the appropriate masking policy based on its data type
+ * 
+ * 4. FUTURE-PROOF: Add new tables/columns - just tag them!
  *******************************************************************************/
 
 /****************************************************/
--- 6. TEST MASKING WITH DIFFERENT ROLES
+-- 5b. OPT-IN AWARE ROW ACCESS POLICY
+/****************************************************/
+/*******************************************************************************
+ * OPT-IN GOVERNANCE PATTERN
+ * 
+ * Masking policies protect column values but operate on individual values.
+ * For row-level opt-in logic (show/hide entire customer records based on consent),
+ * combine masking with a row access policy.
+ * 
+ * This pattern demonstrates:
+ * - Customers who opted OUT (OPTIN='N') are hidden from DATA_USER role
+ * - Customers who opted IN (OPTIN='Y') are visible (but still masked per policy)
+ * - Governors see all customers regardless of opt-in status
+ *******************************************************************************/
+
+CREATE OR REPLACE ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_OPTIN_POLICY
+    AS (OPTIN_STATUS STRING) RETURNS BOOLEAN ->
+    CASE
+        -- Governors and admins see all records
+        WHEN CURRENT_ROLE() IN ('ACCOUNTADMIN', 'HRZN_DATA_ENGINEER', 'HRZN_DATA_GOVERNOR', 'HRZN_IT_ADMIN')
+        THEN TRUE
+        -- Data users only see opted-in customers
+        WHEN CURRENT_ROLE() = 'HRZN_DATA_USER' AND OPTIN_STATUS = 'Y'
+        THEN TRUE
+        -- Hide non-opted-in records from data users
+        ELSE FALSE
+    END;
+
+-- Apply opt-in policy to CUSTOMER table
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER
+    ADD ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_OPTIN_POLICY ON (OPTIN);
+
+/****************************************************/
+-- 6. TEST MASKING AND OPT-IN WITH DIFFERENT ROLES
 /****************************************************/
 
--- As HRZN_DATA_GOVERNOR: Full visibility
+-- As HRZN_DATA_GOVERNOR: Full visibility (all records, all data)
 USE ROLE HRZN_DATA_GOVERNOR;
 SELECT 
     ID,              -- PUBLIC
@@ -287,11 +443,18 @@ SELECT
     SSN,             -- PII
     PHONE_NUMBER,    -- RESTRICTED
     BIRTHDATE,       -- RESTRICTED
-    COMPANY          -- INTERNAL
+    COMPANY,         -- INTERNAL
+    OPTIN            -- Shows consent status
 FROM HRZN_DB.HRZN_SCH.CUSTOMER
-LIMIT 5;
+LIMIT 10;
 
--- As HRZN_DATA_USER: Multi-level masking
+-- Count all customers vs opted-in customers (Governor sees all)
+SELECT 
+    COUNT(*) as total_customers,
+    SUM(CASE WHEN OPTIN = 'Y' THEN 1 ELSE 0 END) as opted_in_customers
+FROM HRZN_DB.HRZN_SCH.CUSTOMER;
+
+-- As HRZN_DATA_USER: Multi-level masking + ONLY opted-in customers visible
 USE ROLE HRZN_DATA_USER;
 SELECT 
     ID,              -- PUBLIC: Visible
@@ -300,9 +463,25 @@ SELECT
     SSN,             -- PII: Fully redacted
     PHONE_NUMBER,    -- RESTRICTED: Partial mask (***-1234)
     BIRTHDATE,       -- RESTRICTED: Partial mask (***-0590)
-    COMPANY          -- INTERNAL: Visible
+    COMPANY,         -- INTERNAL: Visible
+    OPTIN            -- All rows shown have OPTIN='Y' due to row access policy
 FROM HRZN_DB.HRZN_SCH.CUSTOMER
-LIMIT 5;
+LIMIT 10;
+
+-- Count shows only opted-in customers are visible to DATA_USER
+SELECT COUNT(*) as visible_customers FROM HRZN_DB.HRZN_SCH.CUSTOMER;
+
+/*******************************************************************************
+ * KEY OBSERVATION: Layered Governance
+ * 
+ * HRZN_DATA_USER sees:
+ * 1. ROW FILTERING: Only customers with OPTIN='Y' (consent given)
+ * 2. COLUMN MASKING: PII redacted, RESTRICTED partial, SENSITIVE hashed
+ * 
+ * This demonstrates defense-in-depth:
+ * - Row access policy controls WHO can see WHICH records
+ * - Masking policy controls HOW data appears when visible
+ *******************************************************************************/
 
 USE ROLE HRZN_DATA_GOVERNOR;
 
@@ -351,7 +530,7 @@ SELECT * FROM HRZN_DB.HRZN_SCH.CUSTOMER_COPY LIMIT 5;
 USE ROLE HRZN_DATA_GOVERNOR;
 
 /****************************************************/
--- 8. ROW ACCESS POLICIES
+-- 8. ROW ACCESS POLICIES (State-Based Filtering)
 /****************************************************/
 
 /*----------------------------------------------------------------------------------
@@ -362,7 +541,14 @@ in a table or view can be viewed from SELECT, UPDATE, DELETE, and MERGE statemen
 
 Within our Customer table, the users with HRZN_DATA_USER should only see Customers 
 who are based in Massachusetts (MA).
+
+NOTE: Multiple row access policies on the same table are ANDed together.
+We'll first drop the opt-in policy to demonstrate state-based filtering in isolation.
 ----------------------------------------------------------------------------------*/
+
+-- Drop the opt-in policy to demonstrate state-based filtering cleanly
+ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER
+    DROP ROW ACCESS POLICY HRZN_DB.TAG_SCHEMA.CUSTOMER_OPTIN_POLICY;
 
 -- First, unset STATE tag to allow it to be used in WHERE clause
 ALTER TABLE HRZN_DB.HRZN_SCH.CUSTOMER MODIFY COLUMN STATE UNSET TAG HRZN_DB.TAG_SCHEMA.DATA_CLASSIFICATION;

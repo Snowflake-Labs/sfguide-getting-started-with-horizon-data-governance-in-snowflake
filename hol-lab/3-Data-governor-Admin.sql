@@ -191,7 +191,7 @@ FROM
                       )
                     )
                 )
-                WHERE TAG_NAME IN ('CONFIDENTIAL','PII_COL','PII_TYPE') 
+                WHERE TAG_NAME IN ('SEMANTIC_CATEGORY','PRIVACY_CATEGORY','DATA_CLASSIFICATION') 
             )
             OR
             TARGET_COLUMN_NAME IN (
@@ -208,7 +208,7 @@ FROM
                       )
                     )
                 )
-                WHERE TAG_NAME IN ('CONFIDENTIAL','PII_COL','PII_TYPE') --Enter the relevant tag(s) to check against.
+                WHERE TAG_NAME IN ('SEMANTIC_CATEGORY','PRIVACY_CATEGORY','DATA_CLASSIFICATION') --Enter the relevant tag(s) to check against.
             )
             );
 
