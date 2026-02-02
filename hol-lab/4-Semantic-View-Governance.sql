@@ -387,6 +387,5 @@ If masking/filtering doesn't work:
 -- 2. They define business-friendly names for tables, dimensions, metrics
 -- 3. Query them with SEMANTIC_VIEW() function or Cortex Analyst UI
 -- 4. ALL existing policies (masking, row access) automatically apply to AI queries
--- 5. Can be tagged for governance tracking
--- 6. Lineage is tracked in OBJECT_DEPENDENCIES
+-- 5. Lineage is tracked in OBJECT_DEPENDENCIES
 -- ============================================================================

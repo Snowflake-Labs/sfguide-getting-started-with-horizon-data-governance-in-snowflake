@@ -517,7 +517,7 @@ ORDER BY
     COLUMN_NAME;
 
 /*******************************************************************************
- * 🎯 KEY OBSERVATION: Tags Automatically Propagated!
+ * KEY OBSERVATION: Tags Automatically Propagated!
  * 
  * The CUSTOMER_COPY table inherited ALL classification tags from CUSTOMER.
  * Masking policies apply automatically - no manual work needed!

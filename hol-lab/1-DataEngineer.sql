@@ -300,6 +300,7 @@ from table(information_schema.data_metric_function_references(
 
 
 -- the results from our Data Metric Functions can be access through the DATA_QUALITY_MONITORING_RESULTS view
+-- We need to wait a few minutes for the scheduled run to complete
 SELECT 
     change_commit_time,
     measurement_time,

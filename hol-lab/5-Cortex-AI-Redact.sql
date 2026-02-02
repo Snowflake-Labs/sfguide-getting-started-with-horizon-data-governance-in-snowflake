@@ -142,7 +142,7 @@ FROM sample_feedback;
 -- ============================================================================
 USE ROLE SYSADMIN;
 -- Create redacted feedback table for ML training and analytics
--- Limited to 100 rows for demo performance
+-- Limited to 100 rows for demo performance takes about 50 seconds
 CREATE OR REPLACE TABLE HRZN_DB.HRZN_SCH.CUSTOMER_FEEDBACK_REDACTED AS
 SELECT 
     ORDER_ID,
@@ -166,37 +166,7 @@ WHERE original_feedback NOT LIKE 'Standard order%'
 LIMIT 10;
 
 -- ============================================================================
--- 5.4: VERIFY TAG PROPAGATION FROM LAB 2
--- ============================================================================
-
--- Check if classification tags from CUSTOMER_ORDERS propagated to the new table
-SELECT 
-    OBJECT_NAME as TABLE_NAME,
-    COLUMN_NAME,
-    TAG_VALUE as CLASSIFICATION_LEVEL
-FROM SNOWFLAKE.ACCOUNT_USAGE.TAG_REFERENCES
-WHERE OBJECT_DATABASE = 'HRZN_DB'
-    AND OBJECT_SCHEMA = 'HRZN_SCH'
-    AND OBJECT_NAME = 'CUSTOMER_FEEDBACK_REDACTED'
-    AND TAG_NAME = 'DATA_CLASSIFICATION'
-ORDER BY COLUMN_NAME;
-
-/*******************************************************************************
- * KEY OBSERVATION: Automatic Tag Propagation
- * 
- * The DATA_CLASSIFICATION tags from Lab 2 automatically propagated!
- * - ORDER_ID: PUBLIC
- * - CUSTOMER_ID: (classification from CUSTOMER_ORDERS)
- * - ORDER_TS: (classification from CUSTOMER_ORDERS)
- * 
- * This means:
- * - Structured columns: Protected by classification tags + masking policies
- * - Unstructured columns: Protected by AI_REDACT
- * - Complete governance coverage with no manual work!
- *******************************************************************************/
-
--- ============================================================================
--- 5.5: SAFE SENTIMENT ANALYSIS WITH REDACTED DATA
+-- 5.4: SAFE SENTIMENT ANALYSIS WITH REDACTED DATA
 -- ============================================================================
 
 -- Use redacted data for sentiment analysis (safe for ML training)
@@ -212,10 +182,10 @@ SELECT
 FROM HRZN_DB.HRZN_SCH.CUSTOMER_FEEDBACK_REDACTED
 WHERE redacted_feedback NOT LIKE 'Standard order%'
 ORDER BY sentiment_score DESC
-LIMIT 10;
+LIMIT 100;
 
 /*******************************************************************************
- * KEY OBSERVATION: Safe ML Training
+ * KEY OBSERVATION: Safe ML
  * 
  * Sentiment analysis works perfectly on redacted text because:
  * - Sentiment is based on context and word choice, not PII
@@ -231,7 +201,7 @@ LIMIT 10;
  *******************************************************************************/
 
 -- ============================================================================
--- 5.6: ADVANCED - PARTIAL REDACTION WITH CUSTOM ENTITY TYPES
+-- 5.5: ADVANCED - PARTIAL REDACTION WITH CUSTOM ENTITY TYPES
 -- ============================================================================
 
 -- AI_REDACT can also redact specific entity types only
@@ -257,7 +227,7 @@ FROM feedback_sample;
  *******************************************************************************/
 
 -- ============================================================================
--- 5.7: COMBINE WITH ROLE-BASED ACCESS
+-- 5.6: COMBINE WITH ROLE-BASED ACCESS
 -- ============================================================================
 
 -- Governors see original feedback, analysts see redacted version
@@ -313,7 +283,7 @@ USE ROLE HRZN_DATA_GOVERNOR;
  *******************************************************************************/
 
 -- ============================================================================
--- 5.8: BUSINESS INSIGHTS FROM REDACTED DATA
+-- 5.7: BUSINESS INSIGHTS FROM REDACTED DATA
 -- ============================================================================
 
 -- Analyze feedback themes without exposing PII
@@ -359,7 +329,7 @@ ORDER BY feedback_count DESC;
 
 /*******************************************************************************
  * KEY TAKEAWAYS - LAB 5:
- * 
+
  * AI_REDACT USE CASES:
  * - Customer feedback and reviews
  * - Support tickets and chat logs
