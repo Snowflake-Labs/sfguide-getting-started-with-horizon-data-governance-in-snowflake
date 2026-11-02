@@ -1,0 +1,22 @@
+profile:
+  label: "AI Cost Control"
+  description: "Cortex AI spend by service, cost center, budget and user (Agentic Governance HOL Part 5)"
+  icon: public/icon.svg
+
+install:
+  commands:
+    - ["npm", "ci", "--include=dev"]
+
+build:
+  commands:
+    - ["npm", "run", "build"]
+    # For standalone mode
+    - ["cp", "-r", ".next/static", ".next/standalone/.next/static"]
+    - ["cp", "-r", "public", ".next/standalone/public"]
+    # Avoid packaging extra node_modules since standalone includes its own
+    - ["rm", "-rf", "node_modules"]
+
+run:
+  command: ["node", ".next/standalone/server.js"]
+
+# Build-only manifest (no `version:` key): snowflake.yml holds the deployment target.

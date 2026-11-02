@@ -1,0 +1,8 @@
+# Private local material, plans, and generated artifacts
+/scratch/
+
+# Prevent newly generated local artifacts from entering the publication set
+.snowflake/
+.DS_Store
+__pycache__/
+snowflake.log
