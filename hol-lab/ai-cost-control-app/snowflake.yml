@@ -1,0 +1,23 @@
+definition_version: "2"
+
+entities:
+  AGOV_AI_COST_CONTROL:
+    type: snowflake-app
+    identifier:
+      name: AGOV_AI_COST_CONTROL
+      database: AGENTIC_GOV_DB
+      schema: COST_MANAGEMENT
+    artifacts:
+      - src: ./*
+        dest: ./
+        ignore:
+          - node_modules
+          - .env*
+          - __pycache__
+          - "*.pyc"
+          - .next
+          - .git
+          - snowflake.log
+
+    query_warehouse: AGOV_WH
+    code_stage: AGOV_AI_COST_CONTROL_CODE
